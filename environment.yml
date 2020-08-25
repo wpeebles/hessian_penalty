@@ -1,0 +1,24 @@
+name: hessian
+channels:
+  - pytorch
+  - plotly
+  - defaults
+dependencies:
+  - pillow=7.1.2
+  - pip
+  - python=3.6.10
+  - pytorch=1.4.0
+  - scipy=1.4.1
+  - tensorflow-gpu=1.14.0
+  - torchvision=0.5.0
+  - pip:
+    - matplotlib==3.3.0
+    - moviepy==1.0.3
+    - numpy==1.15.3
+    - opencv-python==4.2.0.34
+    - pandas==1.0.3
+    - plotly==4.9.0
+    - seaborn==0.10.1
+    - tensorflow-probability==0.7.0
+    - tqdm==4.46.0
+    - wget
