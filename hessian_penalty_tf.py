@@ -1,5 +1,5 @@
 """
-Official TensorFlow implementation of the Hessian Penalty regularization term from TODO.
+Official TensorFlow implementation of the Hessian Penalty regularization term from https://arxiv.org/pdf/2008.10599.pdf
 Author: Bill Peebles
 PyTorch Implementation (GPU + Multi-Layer): hessian_penalty_pytorch.py
 Simple Pure NumPy Implementation: hessian_penalty_np.py

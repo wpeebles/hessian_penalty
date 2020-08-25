@@ -1,8 +1,8 @@
 """
 An implementation of the Hessian Penalty in pure NumPy (8 lines of code).
-
 PyTorch Implementation (GPU + Multi-Layer): hessian_penalty_pytorch.py
 TensorFlow Implementation (GPU + Multi-Layer): hessian_penalty_tf.py
+Hessian Penalty Paper: https://arxiv.org/pdf/2008.10599.pdf
 """
 
 import numpy as np

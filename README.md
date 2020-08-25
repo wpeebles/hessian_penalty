@@ -1,6 +1,6 @@
 ## The Hessian Penalty &mdash; Official Implementation
 
-[Paper]("https://arxiv.org/abs/2008.10599") | [Project Page](https://www.wpeebles.com/hessian-penalty) | [ECCV 2020 Spotlight Video](https://youtu.be/uZyIcTkSSXA) | [The Hessian Penalty in 90 Seconds](https://youtu.be/jPl-0EN6S1w)
+### [Paper](https://arxiv.org/abs/2008.10599) | [Project Page](https://www.wpeebles.com/hessian-penalty) | [ECCV 2020 Spotlight Video](https://youtu.be/uZyIcTkSSXA) | [The Hessian Penalty in 90 Seconds](https://youtu.be/jPl-0EN6S1w)
 
 ![Teaser image](teaser_images/teaser_small.gif)
 
@@ -131,7 +131,7 @@ This code supports both Tensorboard and the [WandB](https://www.wandb.com/) dash
 
 ## Citation
 
-If our code aided your research, please cite our [paper]("https://arxiv.org/abs/2008.10599"):
+If our code aided your research, please cite our [paper](https://arxiv.org/pdf/2008.10599.pdf):
 ```
 @inproceedings{peebles2020hessian,
   title={The Hessian Penalty: A Weak Prior for Unsupervised Disentanglement},
