@@ -3,11 +3,11 @@ Various minimal tests to sanity-check the implementation of multi_layer_hessian_
 You can run these tests on CPU or GPU (the "G_loss/GPU0" scope is just to spoof the naming expected by multi_layer_hessian_penalty).
 Due to the stochastic nature of the Hessian Penalty approximation, the computation won't exactly match the ground truth.
 """
+import numpy as np
+from training.hessian_penalties import multi_layer_hessian_penalty
+import tensorflow as tf
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-import tensorflow as tf
-from training.hessian_penalties import multi_layer_hessian_penalty
-import numpy as np
 
 
 def reset_tf(seed=500):

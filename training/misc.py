@@ -19,22 +19,26 @@ import dnnlib
 import config
 from training import dataset
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Convenience wrappers for pickle that are able to load data produced by
 # older versions of the code, and from external URLs.
+
 
 def open_file_or_url(file_or_url):
     if dnnlib.util.is_url(file_or_url):
         return dnnlib.util.open_url(file_or_url, cache_dir=config.cache_dir)
     return open(file_or_url, 'rb')
 
+
 def load_pkl(file_or_url):
     with open_file_or_url(file_or_url) as file:
         return pickle.load(file, encoding='latin1')
 
+
 def save_pkl(obj, filename):
     with open(filename, 'wb') as file:
         pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 def find_pkl(results_dir, exp_number, snapshot_ix):
     if snapshot_ix == 'latest':
@@ -47,8 +51,9 @@ def find_pkl(results_dir, exp_number, snapshot_ix):
     print('Found %s as the checkpoint to resume from' % resume_pkl)
     return resume_pkl
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Image utils.
+
 
 def adjust_dynamic_range(data, drange_in, drange_out):
     if drange_in != drange_out:
@@ -56,6 +61,7 @@ def adjust_dynamic_range(data, drange_in, drange_out):
         bias = (np.float32(drange_out[0]) - np.float32(drange_in[0]) * scale)
         data = data * scale + bias
     return data
+
 
 def create_image_grid(images, grid_size=None, pad_val=0, px=0, py=0):
     assert images.ndim == 3 or images.ndim == 4
@@ -70,34 +76,38 @@ def create_image_grid(images, grid_size=None, pad_val=0, px=0, py=0):
     for idx in range(num):
         x = (idx % grid_w) * img_w + px * (idx % grid_w + 1)
         y = (idx // grid_w) * img_h + py * (idx // grid_w + 1)
-        grid[..., y : y + img_h, x : x + img_w] = images[idx]
+        grid[..., y: y + img_h, x: x + img_w] = images[idx]
     return grid
 
-def convert_to_pil_image(image, drange=[0,1]):
+
+def convert_to_pil_image(image, drange=[0, 1]):
     assert image.ndim == 2 or image.ndim == 3
     if image.ndim == 3:
         if image.shape[0] == 1:
-            image = image[0] # grayscale CHW => HW
+            image = image[0]  # grayscale CHW => HW
         else:
-            image = image.transpose(1, 2, 0) # CHW -> HWC
+            image = image.transpose(1, 2, 0)  # CHW -> HWC
 
-    image = adjust_dynamic_range(image, drange, [0,255])
+    image = adjust_dynamic_range(image, drange, [0, 255])
     image = np.rint(image).clip(0, 255).astype(np.uint8)
     fmt = 'RGB' if image.ndim == 3 else 'L'
     return PIL.Image.fromarray(image, fmt)
 
-def save_image(image, filename, drange=[0,1], quality=95):
+
+def save_image(image, filename, drange=[0, 1], quality=95):
     img = convert_to_pil_image(image, drange)
     if '.jpg' in filename:
-        img.save(filename,"JPEG", quality=quality, optimize=True)
+        img.save(filename, "JPEG", quality=quality, optimize=True)
     else:
         img.save(filename)
 
-def save_image_grid(images, filename, drange=[0,1], grid_size=None):
+
+def save_image_grid(images, filename, drange=[0, 1], grid_size=None):
     convert_to_pil_image(create_image_grid(images, grid_size), drange).save(filename)
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Locating results.
+
 
 def locate_run_dir(run_id_or_run_dir):
     if isinstance(run_id_or_run_dir, str):
@@ -120,6 +130,7 @@ def locate_run_dir(run_id_or_run_dir):
             return run_dirs[0]
     raise IOError('Cannot locate result subdir for run', run_id_or_run_dir)
 
+
 def list_network_pkls(run_id_or_run_dir, include_final=True):
     run_dir = locate_run_dir(run_id_or_run_dir)
     pkls = sorted(glob.glob(os.path.join(run_dir, 'network-*.pkl')))
@@ -128,6 +139,7 @@ def list_network_pkls(run_id_or_run_dir, include_final=True):
             pkls.append(pkls[0])
         del pkls[0]
     return pkls
+
 
 def locate_network_pkl(run_id_or_run_dir_or_network_pkl, snapshot_or_network_pkl=None):
     for candidate in [snapshot_or_network_pkl, run_id_or_run_dir_or_network_pkl]:
@@ -148,19 +160,24 @@ def locate_network_pkl(run_id_or_run_dir_or_network_pkl, snapshot_or_network_pkl
             number = int(name.split('-')[-1])
             if number == snapshot_or_network_pkl:
                 return pkl
-        except ValueError: pass
-        except IndexError: pass
+        except ValueError:
+            pass
+        except IndexError:
+            pass
     raise IOError('Cannot locate network pkl for snapshot', snapshot_or_network_pkl)
+
 
 def get_id_string_for_network_pkl(network_pkl):
     p = network_pkl.replace('.pkl', '').replace('\\', '/').split('/')
     return '-'.join(p[max(len(p) - 2, 0):])
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Loading data from previous training runs.
+
 
 def load_network_pkl(run_id_or_run_dir_or_network_pkl, snapshot_or_network_pkl=None):
     return load_pkl(locate_network_pkl(run_id_or_run_dir_or_network_pkl, snapshot_or_network_pkl))
+
 
 def parse_config_for_previous_run(run_id):
     run_dir = locate_run_dir(run_id)
@@ -171,7 +188,7 @@ def parse_config_for_previous_run(run_id):
         for line in f:
             line = re.sub(r"^{?\s*'(\w+)':\s*{(.*)(},|}})$", r"\1 = {\2}", line.strip())
             if line.startswith('dataset =') or line.startswith('train ='):
-                exec(line, cfg, cfg) # pylint: disable=exec-used
+                exec(line, cfg, cfg)  # pylint: disable=exec-used
 
     # Handle legacy options.
     if 'file_pattern' in cfg['dataset']:
@@ -180,19 +197,23 @@ def parse_config_for_previous_run(run_id):
         cfg['train']['mirror_augment'] = cfg['dataset'].pop('mirror_augment')
     if 'max_labels' in cfg['dataset']:
         v = cfg['dataset'].pop('max_labels')
-        if v is None: v = 0
-        if v == 'all': v = 'full'
+        if v is None:
+            v = 0
+        if v == 'all':
+            v = 'full'
         cfg['dataset']['max_label_size'] = v
     if 'max_images' in cfg['dataset']:
         cfg['dataset'].pop('max_images')
     return cfg
 
-def load_dataset_for_previous_run(run_id, **kwargs): # => dataset_obj, mirror_augment
+
+def load_dataset_for_previous_run(run_id, **kwargs):  # => dataset_obj, mirror_augment
     cfg = parse_config_for_previous_run(run_id)
     cfg['dataset'].update(kwargs)
     dataset_obj = dataset.load_dataset(data_dir=config.data_dir, **cfg['dataset'])
     mirror_augment = cfg['train'].get('mirror_augment', False)
     return dataset_obj, mirror_augment
+
 
 def apply_mirror_augment(minibatch):
     mask = np.random.rand(minibatch.shape[0]) < 0.5
@@ -200,13 +221,14 @@ def apply_mirror_augment(minibatch):
     minibatch[mask] = minibatch[mask, :, :, ::-1]
     return minibatch
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Size and contents of the image snapshot grids that are exported
 # periodically during training.
 
+
 def setup_snapshot_image_grid(G, training_set,
-    size    = '1080p',      # '1080p' = to be viewed on 1080p display, '4k' = to be viewed on 4k display.
-    layout  = 'random'):    # 'random' = grid contents are selected randomly, 'row_per_class' = each row corresponds to one class label.
+                              size='1080p',      # '1080p' = to be viewed on 1080p display, '4k' = to be viewed on 4k display.
+                              layout='random'):    # 'random' = grid contents are selected randomly, 'row_per_class' = each row corresponds to one class label.
 
     # Select size.
     gw = 1; gh = 1
@@ -227,7 +249,7 @@ def setup_snapshot_image_grid(G, training_set,
         reals[:], labels[:] = training_set.get_minibatch_np(gw * gh)
 
     # Class-conditional layouts.
-    class_layouts = dict(row_per_class=[gw,1], col_per_class=[1,gh], class4x4=[4,4])
+    class_layouts = dict(row_per_class=[gw, 1], col_per_class=[1, gh], class4x4=[4, 4])
     if layout in class_layouts:
         bw, bh = class_layouts[layout]
         nw = (gw - 1) // bw + 1
@@ -244,7 +266,7 @@ def setup_snapshot_image_grid(G, training_set,
                     break
         for i, block in enumerate(blocks):
             for j, (real, label) in enumerate(block):
-                x = (i %  nw) * bw + j %  bw
+                x = (i % nw) * bw + j % bw
                 y = (i // nw) * bh + j // bw
                 if x < gw and y < gh:
                     reals[x + y * gw] = real[0]
@@ -252,4 +274,4 @@ def setup_snapshot_image_grid(G, training_set,
 
     return (gw, gh), reals, labels, latents
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------

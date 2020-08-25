@@ -1,25 +1,23 @@
 """Main training script."""
 
+from training.hessian_penalties import get_current_hessian_penalty_loss_weight
+from copy import deepcopy
+from metrics import metric_base
+from training import vis_tools
+from training import misc
+from training import dataset
+import train
+import config
+from dnnlib.tflib.autosummary import autosummary, build_image_summary
+import dnnlib.tflib as tflib
+import dnnlib
 import os
 import numpy as np
 import tensorflow as tf
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)  # Suppress annoying TensorFlow deprecation warnings
-import dnnlib
-import dnnlib.tflib as tflib
-from dnnlib.tflib.autosummary import autosummary, build_image_summary
-
-import config
-import train
-from training import dataset
-from training import misc
-from training import vis_tools
-from metrics import metric_base
-from copy import deepcopy
-
-from training.hessian_penalties import get_current_hessian_penalty_loss_weight
 
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Just-in-time processing of training images before feeding them to the networks.
 
 def process_reals(x, lod, mirror_augment, drange_data, drange_net):
@@ -33,14 +31,14 @@ def process_reals(x, lod, mirror_augment, drange_data, drange_net):
                 mask = tf.random_uniform([s[0], 1, 1, 1], 0.0, 1.0)
                 mask = tf.tile(mask, [1, s[1], s[2], s[3]])
                 x = tf.where(mask < 0.5, x, tf.reverse(x, axis=[3]))
-        with tf.name_scope('FadeLOD'): # Smooth crossfade between consecutive levels-of-detail.
+        with tf.name_scope('FadeLOD'):  # Smooth crossfade between consecutive levels-of-detail.
             s = tf.shape(x)
-            y = tf.reshape(x, [-1, s[1], s[2]//2, 2, s[3]//2, 2])
+            y = tf.reshape(x, [-1, s[1], s[2] // 2, 2, s[3] // 2, 2])
             y = tf.reduce_mean(y, axis=[3, 5], keepdims=True)
             y = tf.tile(y, [1, 1, 1, 2, 1, 2])
             y = tf.reshape(y, [-1, s[1], s[2], s[3]])
             x = tflib.lerp(x, y, lod - tf.floor(lod))
-        with tf.name_scope('UpscaleLOD'): # Upscale to match the expected input/output size of the networks.
+        with tf.name_scope('UpscaleLOD'):  # Upscale to match the expected input/output size of the networks.
             s = tf.shape(x)
             factor = tf.cast(2 ** tf.floor(lod), tf.int32)
             x = tf.reshape(x, [-1, s[1], s[2], 1, s[3], 1])
@@ -48,26 +46,27 @@ def process_reals(x, lod, mirror_augment, drange_data, drange_net):
             x = tf.reshape(x, [-1, s[1], s[2] * factor, s[3] * factor])
         return x
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Evaluate time-varying training parameters.
 
+
 def training_schedule(
-    cur_nimg,
-    training_set,
-    num_gpus,
-    lod_initial_resolution  = 4,        # Image resolution used at the beginning.
-    lod_training_kimg       = 600,      # Thousands of real images to show before doubling the resolution.
-    lod_transition_kimg     = 600,      # Thousands of real images to show when fading in new layers.
-    minibatch_base          = 16,       # Maximum minibatch size, divided evenly among GPUs.
-    minibatch_dict          = {},       # Resolution-specific overrides.
-    max_minibatch_per_gpu   = {},       # Resolution-specific maximum minibatch size per GPU.
-    G_lrate_base            = 0.001,    # Learning rate for the generator.
-    G_lrate_dict            = {},       # Resolution-specific overrides.
-    D_lrate_base            = 0.001,    # Learning rate for the discriminator.
-    D_lrate_dict            = {},       # Resolution-specific overrides.
-    lrate_rampup_kimg       = 0,        # Duration of learning rate ramp-up.
-    tick_kimg_base          = 160,      # Default interval of progress snapshots.
-    tick_kimg_dict          = {4: 160, 8:140, 16:120, 32:100, 64:80, 128:60, 256:40, 512:30, 1024:20}): # Resolution-specific overrides.
+        cur_nimg,
+        training_set,
+        num_gpus,
+        lod_initial_resolution=4,        # Image resolution used at the beginning.
+        lod_training_kimg=600,      # Thousands of real images to show before doubling the resolution.
+        lod_transition_kimg=600,      # Thousands of real images to show when fading in new layers.
+        minibatch_base=16,       # Maximum minibatch size, divided evenly among GPUs.
+        minibatch_dict={},       # Resolution-specific overrides.
+        max_minibatch_per_gpu={},       # Resolution-specific maximum minibatch size per GPU.
+        G_lrate_base=0.001,    # Learning rate for the generator.
+        G_lrate_dict={},       # Resolution-specific overrides.
+        D_lrate_base=0.001,    # Learning rate for the discriminator.
+        D_lrate_dict={},       # Resolution-specific overrides.
+        lrate_rampup_kimg=0,        # Duration of learning rate ramp-up.
+        tick_kimg_base=160,      # Default interval of progress snapshots.
+        tick_kimg_dict={4: 160, 8: 140, 16: 120, 32: 100, 64: 80, 128: 60, 256: 40, 512: 30, 1024: 20}):  # Resolution-specific overrides.
 
     # Initialize result dict.
     s = dnnlib.EasyDict()
@@ -105,41 +104,41 @@ def training_schedule(
     s.tick_kimg = tick_kimg_dict.get(s.resolution, tick_kimg_base)
     return s
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Main training script.
 
 
 def training_loop(
-    submit_config,
-    HP_args                 = {},       # Options for the Hessian Penalty.
-    G_args                  = {},       # Options for generator network.
-    D_args                  = {},       # Options for discriminator network.
-    G_opt_args              = {},       # Options for generator optimizer.
-    D_opt_args              = {},       # Options for discriminator optimizer.
-    G_loss_args             = {},       # Options for generator loss.
-    D_loss_args             = {},       # Options for discriminator loss.
-    dataset_args            = {},       # Options for dataset.load_dataset().
-    sched_args              = {},       # Options for train.TrainingSchedule.
-    grid_args               = {},       # Options for train.setup_snapshot_image_grid().
-    metric_arg_list         = [],       # Options for MetricGroup.
-    tf_config               = {},       # Options for tflib.init_tf().
-    G_smoothing_kimg        = 10.0,     # Half-life of the running average of generator weights.
-    D_repeats               = 1,        # How many times the discriminator is trained per G iteration.
-    minibatch_repeats       = 4,        # Number of minibatches to run before adjusting training parameters.
-    reset_opt_for_new_lod   = True,     # Reset optimizer internal state (e.g. Adam moments) when new layers are introduced?
-    total_kimg              = 15000,    # Total length of the training, measured in thousands of real images.
-    mirror_augment          = False,    # Enable mirror augment?
-    drange_net              = [-1,1],   # Dynamic range used when feeding image data to the networks.
-    image_snapshot_ticks    = 1,        # How often to export image snapshots?
-    interp_snapshot_ticks   = 20,       # How often to generate interpolation visualizations in TensorBoard?
-    network_snapshot_ticks  = 5,        # How often to export network snapshots?
-    network_metric_ticks    = 5,        # How often to evaluate network snapshots on specified metrics?
-    save_tf_graph           = False,    # Include full TensorFlow computation graph in the tfevents file?
-    save_weight_histograms  = False,    # Include weight histograms in the tfevents file?
-    resume_run_id           = None,     # Run ID or network pkl to resume training from, None = start from scratch.
-    resume_snapshot         = None,     # Snapshot index to resume training from, None = autodetect.
-    resume_kimg             = 0.0,      # Assumed training progress at the beginning. Affects reporting and training schedule.
-    resume_time             = 0.0):     # Assumed wallclock time at the beginning. Affects reporting.
+        submit_config,
+        HP_args={},       # Options for the Hessian Penalty.
+        G_args={},       # Options for generator network.
+        D_args={},       # Options for discriminator network.
+        G_opt_args={},       # Options for generator optimizer.
+        D_opt_args={},       # Options for discriminator optimizer.
+        G_loss_args={},       # Options for generator loss.
+        D_loss_args={},       # Options for discriminator loss.
+        dataset_args={},       # Options for dataset.load_dataset().
+        sched_args={},       # Options for train.TrainingSchedule.
+        grid_args={},       # Options for train.setup_snapshot_image_grid().
+        metric_arg_list=[],       # Options for MetricGroup.
+        tf_config={},       # Options for tflib.init_tf().
+        G_smoothing_kimg=10.0,     # Half-life of the running average of generator weights.
+        D_repeats=1,        # How many times the discriminator is trained per G iteration.
+        minibatch_repeats=4,        # Number of minibatches to run before adjusting training parameters.
+        reset_opt_for_new_lod=True,     # Reset optimizer internal state (e.g. Adam moments) when new layers are introduced?
+        total_kimg=15000,    # Total length of the training, measured in thousands of real images.
+        mirror_augment=False,    # Enable mirror augment?
+        drange_net=[-1, 1],   # Dynamic range used when feeding image data to the networks.
+        image_snapshot_ticks=1,        # How often to export image snapshots?
+        interp_snapshot_ticks=20,       # How often to generate interpolation visualizations in TensorBoard?
+        network_snapshot_ticks=5,        # How often to export network snapshots?
+        network_metric_ticks=5,        # How often to evaluate network snapshots on specified metrics?
+        save_tf_graph=False,    # Include full TensorFlow computation graph in the tfevents file?
+        save_weight_histograms=False,    # Include weight histograms in the tfevents file?
+        resume_run_id=None,     # Run ID or network pkl to resume training from, None = start from scratch.
+        resume_snapshot=None,     # Snapshot index to resume training from, None = autodetect.
+        resume_kimg=0.0,      # Assumed training progress at the beginning. Affects reporting and training schedule.
+        resume_time=0.0):     # Assumed wallclock time at the beginning. Affects reporting.
 
     # Initialize dnnlib and TensorFlow.
     ctx = dnnlib.RunContext(submit_config, train)
@@ -170,11 +169,11 @@ def training_loop(
 
     print('Building TensorFlow graph...')
     with tf.name_scope('Inputs'), tf.device('/cpu:0'):
-        lod_in          = tf.placeholder(tf.float32, name='lod_in', shape=[])
-        lrate_in        = tf.placeholder(tf.float32, name='lrate_in', shape=[])
-        minibatch_in    = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
+        lod_in = tf.placeholder(tf.float32, name='lod_in', shape=[])
+        lrate_in = tf.placeholder(tf.float32, name='lrate_in', shape=[])
+        minibatch_in = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
         minibatch_split = minibatch_in // submit_config.num_gpus
-        Gs_beta         = 0.5 ** tf.div(tf.cast(minibatch_in, tf.float32), G_smoothing_kimg * 1000.0) if G_smoothing_kimg > 0.0 else 0.0
+        Gs_beta = 0.5 ** tf.div(tf.cast(minibatch_in, tf.float32), G_smoothing_kimg * 1000.0) if G_smoothing_kimg > 0.0 else 0.0
 
     # The loss weighting of the Hessian Penalty can be dynamic over training, so we need to use a placeholder:
     hessian_weight = tf.placeholder(tf.float32, name='hessian_weight', shape=[])
@@ -199,7 +198,8 @@ def training_loop(
                                                                           lod_in=lod_in,
                                                                           max_lod=training_set.resolution_log2,
                                                                           **G_loss_args)
-                if HP_args.hp_lambda > 0: reg_ops += [G_hessian_penalty]
+                if HP_args.hp_lambda > 0:
+                    reg_ops += [G_hessian_penalty]
             with tf.name_scope('D_loss'), tf.control_dependencies(lod_assign_ops):
                 D_loss, mutual_info = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt,
                                                                     training_set=training_set,
@@ -213,7 +213,8 @@ def training_loop(
                 # gg = autosummary('Loss/G_info_grad', tf.reduce_sum(tf.gradients(mutual_info, gps)[0]**2))
                 # dg = autosummary('Loss/D_info_grad', tf.reduce_sum(tf.gradients(mutual_info, dps)[0]**2))
                 # reg_ops.extend([dg, gg, dps, gps])
-                if G_args.infogan_lambda > 0 or D_args.infogan_lambda > 0: reg_ops += [mutual_info]
+                if G_args.infogan_lambda > 0 or D_args.infogan_lambda > 0:
+                    reg_ops += [mutual_info]
             # Note, even though we are adding mutual_info loss here, the only time the loss is non-zero
             # is when infogan_lambda > 0 (in Hessian Penalty experiments, we always set it to zero):
             G_opt.register_gradients(G_loss + G_args.infogan_lambda * mutual_info, G_gpu.trainables)
@@ -230,8 +231,8 @@ def training_loop(
 
     print('Setting up snapshot image grid...')
     grid_size, grid_reals, grid_labels, grid_latents = misc.setup_snapshot_image_grid(G, training_set, **grid_args)
-    sched = training_schedule(cur_nimg=total_kimg*1000, training_set=training_set, num_gpus=submit_config.num_gpus, **sched_args)
-    grid_fakes = Gs.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch//submit_config.num_gpus)
+    sched = training_schedule(cur_nimg=total_kimg * 1000, training_set=training_set, num_gpus=submit_config.num_gpus, **sched_args)
+    grid_fakes = Gs.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch // submit_config.num_gpus)
 
     print('Setting up snapshot interpolation...')
     nz = G.input_shapes[0][1]
@@ -270,7 +271,8 @@ def training_loop(
     num_G_grad_steps = 0
 
     while cur_nimg < total_kimg * 1000:
-        if ctx.should_stop(): break
+        if ctx.should_stop():
+            break
 
         # Choose training parameters and configure training ops.
         sched = training_schedule(cur_nimg=cur_nimg, training_set=training_set, num_gpus=submit_config.num_gpus, **sched_args)
@@ -318,8 +320,8 @@ def training_loop(
             # Save snapshots and fake image samples (for both Gs and G):
             if cur_tick % image_snapshot_ticks == 0 or done:
                 iter = (cur_nimg // 1000)
-                grid_fakes = Gs.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch//submit_config.num_gpus)
-                grid_fakes_inst = G.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch//submit_config.num_gpus)
+                grid_fakes = Gs.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch // submit_config.num_gpus)
+                grid_fakes_inst = G.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch // submit_config.num_gpus)
                 fake_path = os.path.join(submit_config.run_dir, 'fakes%06d.png' % iter)
                 ifake_path = os.path.join(submit_config.run_dir, 'ifakes%06d.png' % iter)
                 misc.save_image_grid(grid_fakes, fake_path, drange=drange_net, grid_size=grid_size)
@@ -354,4 +356,4 @@ def training_loop(
 
     ctx.close()
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------

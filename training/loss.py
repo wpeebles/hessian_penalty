@@ -12,8 +12,9 @@ import dnnlib.tflib as tflib
 from dnnlib.tflib.autosummary import autosummary
 from training.hessian_penalties import multi_layer_hessian_penalty
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Convenience func that casts all of its arguments to tf.float32.
+
 
 def fp32(*values):
     if len(values) == 1 and isinstance(values[0], tuple):
@@ -21,7 +22,7 @@ def fp32(*values):
     values = tuple(tf.cast(v, tf.float32) for v in values)
     return values if len(values) >= 2 else values[0]
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # WGAN & WGAN-GP loss functions.
 
 
@@ -52,10 +53,10 @@ def G_wgan(G, D, opt, hp_lambda, HP_args, training_set, minibatch_size, lod_in, 
 
 
 def D_wgan_gp(G, D, opt, training_set, minibatch_size, reals, labels, infogan_nz,
-              wgan_lambda     = 10.0,     # Weight for the gradient penalty term.
-              wgan_epsilon    = 0.001,    # Weight for the epsilon term, \epsilon_{drift}.
-              wgan_target     = 1.0,      # Target value for gradient magnitudes.
-              gpu_ix          = None):
+              wgan_lambda=10.0,     # Weight for the gradient penalty term.
+              wgan_epsilon=0.001,    # Weight for the epsilon term, \epsilon_{drift}.
+              wgan_target=1.0,      # Target value for gradient magnitudes.
+              gpu_ix=None):
 
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
@@ -95,7 +96,7 @@ def D_wgan_gp(G, D, opt, training_set, minibatch_size, reals, labels, infogan_nz
         mixed_scores_out = autosummary('Loss/scores/mixed', mixed_scores_out)
         mixed_loss = opt.apply_loss_scaling(tf.reduce_sum(mixed_scores_out))
         mixed_grads = opt.undo_loss_scaling(fp32(tf.gradients(mixed_loss, [mixed_images_out])[0]))
-        mixed_norms = tf.sqrt(tf.reduce_sum(tf.square(mixed_grads), axis=[1,2,3]))
+        mixed_norms = tf.sqrt(tf.reduce_sum(tf.square(mixed_grads), axis=[1, 2, 3]))
         mixed_norms = autosummary('Loss/mixed_norms', mixed_norms)
         gradient_penalty = tf.square(mixed_norms - wgan_target)
     loss += gradient_penalty * (wgan_lambda / (wgan_target**2))
@@ -105,4 +106,4 @@ def D_wgan_gp(G, D, opt, training_set, minibatch_size, reals, labels, infogan_nz
     loss += epsilon_penalty * wgan_epsilon
     return loss, mutual_information_loss
 
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------

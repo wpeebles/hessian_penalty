@@ -6,7 +6,7 @@ from latent noise produced by sample_interp_zs() (which has a very specific patt
 
 import numpy as np
 import imageio
-from training.misc import save_image_grid, create_image_grid, adjust_dynamic_range
+from training.misc import create_image_grid, adjust_dynamic_range
 from dnnlib.tflib.autosummary import convert_tensor_to_gif_summary
 import moviepy.editor
 import os
@@ -123,7 +123,7 @@ def create_interp_video_row(images, interp_steps, save_path=None, norm=False, px
     if norm or save_path:  # Normalize the frames before returning?
         frames = prepro_imgs(frames)
     if save_path:  # Optionally directly save the frames as a video with 24fps
-        imageio.mimsave(save_path, frames, duration=1/24)
+        imageio.mimsave(save_path, frames, duration=1 / 24)
     return frames
 
 
@@ -141,7 +141,7 @@ def create_multiple_interp_video_rows(images, interp_steps, batch_size, norm=Tru
     row_gifs = []
     for z in range(nz):
         z_path = save_dir % z if save_dir else None
-        z_gif = create_interp_video_row(images[z*offset:(z+1)*offset], interp_steps, norm=norm, save_path=z_path,
+        z_gif = create_interp_video_row(images[z * offset:(z + 1) * offset], interp_steps, norm=norm, save_path=z_path,
                                         px=px, py=py, transpose=transpose)
         row_gifs.append(z_gif)
     return row_gifs
@@ -186,7 +186,7 @@ def make_h264_mp4_video(G, interp_z, interp_labels, minibatch_size, interp_steps
         if stills_only:
             return
     interp_grid_fakes = create_multiple_interp_video_rows(interp_grid_fakes, interp_steps, interp_batch_size,
-                                                          norm=False, px=pad_x, py=pad_y//2, transpose=transpose)
+                                                          norm=False, px=pad_x, py=pad_y // 2, transpose=transpose)
     grid_size = (nz_per_vid, 1) if transpose else (1, nz_per_vid)
     print(f'Saving mp4 visualizations to {vis_path}.')
     for z_start in range(0, nz, nz_per_vid):  # Iterate over mp4s we are going to create:
@@ -196,7 +196,7 @@ def make_h264_mp4_video(G, interp_z, interp_labels, minibatch_size, interp_steps
         for i in range(interp_steps):  # iterate over frames
             row_frames = [row_video[i] for row_video in row_videos]
             row_frames = np.stack(row_frames)
-            stitched_frame = create_image_grid(row_frames, grid_size=grid_size, px=0, py=pad_y//2, pad_val=-1)
+            stitched_frame = create_image_grid(row_frames, grid_size=grid_size, px=0, py=pad_y // 2, pad_val=-1)
             stitched_video.append(stitched_frame)
         if perfect_loop:  # Add a reversed copy of the video onto the end so it "loops"
             stitched_video = stitched_video + stitched_video[::-1]

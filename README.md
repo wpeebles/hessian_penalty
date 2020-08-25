@@ -46,7 +46,7 @@ loss.backward()
 
 See our [Tips and Tricks](tips_and_tricks.md) for some advice about training with the Hessian Penalty and avoiding pitfalls. Our code supports regularizing multiple activations simultaneously; see the fourth bullet point in Tips and Tricks for how to enable this feature.
 
-## Getting Started with Our Code
+## Getting Started
 
 This section and below are only needed if you want to visualize/evaluate/train with our code and models. For using the Hessian Penalty in your own code, you can copy one of the files mentioned in the above section.
 
@@ -122,7 +122,7 @@ There are several options related to the Hessian Penalty that can be controlled 
 We include the commands used to train Hessian Penalty models from scratch, vanilla models, and InfoGAN models in the [`training_scripts`](training_scripts) folder. For fine-tuning a pre-trained ProGAN with the Hessian Penalty (or just resuming an experiment), you can use the `--resume_exp` and `--resume_snapshot` arguments. For example, if you have a network `results/00011-my-experiment/network-snapshot-00500.pkl`, you can fine-tune it with:
 
 ```python
-python train.py --resume_exp 11 --resume_snapshot 500 --hp_lambda 0.1 --warmup_kimg 10000 <plus any other command line arguments you used to launch the original experiment you're fine-tuning from...>
+python train.py --resume_exp 11 --resume_snapshot 500 --hp_lambda 0.1 --warmup_kimg 10000 <plus any other command-line arguments you used to launch the original experiment you're fine-tuning from...>
 ```
 
 To train a vanilla ProGAN, use `--hp_lambda 0`. To train with InfoGAN's regularizer, add `--infogan_lambda <loss_weighting> --infogan_nz <nz>`. This will regularize the first `nz` components of the `z` vector with InfoGAN's loss.
