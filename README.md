@@ -4,7 +4,7 @@
 
 ![Teaser image](teaser_images/teaser_small.gif)
 
-This repo contains code for our new regularization that encourages disentanglement in neural networks. It efficiently optimizes the Hessian of your neural network to be diagonal in an input, leading to disentanglement in that input. We showcase its usage in generative adversarial networks (GANs), but you can use our code for other neural networks you want.
+This repo contains code for our new regularization term that encourages disentanglement in neural networks. It efficiently optimizes the Hessian of your neural network to be diagonal in an input, leading to disentanglement in that input. We showcase its usage in generative adversarial networks (GANs), but you can use our code for other neural networks too.
 
 [**The Hessian Penalty: A Weak Prior for Unsupervised Disentanglement**](https://www.wpeebles.com/hessian-penalty)<br>
 [William Peebles](https://www.wpeebles.com/), [John Peebles](http://johnpeebles.com/), [Jun-Yan Zhu](https://www.cs.cmu.edu/~junyanz/), [Alexei Efros](https://people.eecs.berkeley.edu/~efros/), [Antonio Torralba](https://groups.csail.mit.edu/vision/torralbalab/)<br>
