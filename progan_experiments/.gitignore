@@ -1,0 +1,7 @@
+.xml
+.idea
+.idea/workspace.xml
+.DS_Store
+*/__pycache__git
+.pyc
+.iml
