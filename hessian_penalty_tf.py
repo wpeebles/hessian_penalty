@@ -117,7 +117,7 @@ def _test_hessian_penalty():
     batch_size = 10
     nz = 2
     z = tf.random_normal([batch_size, nz])
-    def reduction(x): return tf.reduce_mean(tf.abs(x))
+    def reduction(x): return tf.reduce_max(x)
     def G(z): return [z[:, 0] * z[:, 1], (z[:, 0] ** 2) * z[:, 1]]
     ground_truth = tf.stack([4, reduction(16 * z[:, 0] ** 2)])
     # In this simple example, we use k=100 to reduce variance, but when applied to neural networks

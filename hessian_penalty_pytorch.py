@@ -118,7 +118,7 @@ def _test_hessian_penalty():
     batch_size = 10
     nz = 2
     z = torch.randn(batch_size, nz)
-    def reduction(x): return x.abs().mean()
+    def reduction(x): return torch.max(x)
     def G(z): return [z[:, 0] * z[:, 1], (z[:, 0] ** 2) * z[:, 1]]
     ground_truth = [4, reduction(16 * z[:, 0] ** 2).item()]
     # In this simple example, we use k=100 to reduce variance, but when applied to neural networks

@@ -43,7 +43,7 @@ def _test_hessian_penalty():
     batch_size = 10
     nz = 2
     z = np.random.randn(batch_size, nz)
-    def reduction(x): return np.abs(x).mean()
+    def reduction(x): return np.max(x)
     def G(z): return (z[:, 0] ** 2) * z[:, 1]
     ground_truth = reduction(16 * z[:, 0] ** 2)
     # In this simple example, we use k=100 to reduce variance, but when applied to neural networks
